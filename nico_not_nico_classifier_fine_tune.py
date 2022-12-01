@@ -53,36 +53,16 @@ data_augmentation = tf.keras.Sequential([
 ])
 
 
-#  Build The Model
+#  Build The Model (MobileNet)
 
 # Preprocess to rescale the pixel values from [0,255] to [-1,1]
-# MobileNet
 preprocess_input = tf.keras.applications.mobilenet_v2.preprocess_input
-# ResNet50
-#preprocess_input = tf.keras.applications.resnet50.preprocess_input
-# ResNet152
-#preprocess_input = tf.keras.applications.resnet.preprocess_input
-# Xception
-#preprocess_input = tf.keras.applications.xception.preprocess_input
-# Vgg16
-#preprocess_input = tf.keras.applications.vgg16.preprocess_input
-
 
 # Create the base model from the pre-trained model MobileNet V2
 IMG_SHAPE = IMG_SIZE + (3,)
-
-# MobileNet
 base_model = tf.keras.applications.MobileNetV2(input_shape=IMG_SHAPE,
                                                include_top=False,
                                                weights='imagenet')
-# ResNet50
-# base_model = tf.keras.applications.resnet50.ResNet50(...)
-# ResNet152
-# base_model = tf.keras.applications.resnet.ResNet152(...)
-# Xception
-# base_model = tf.keras.applications.xception.Xception(...)
-# Vgg16  
-# base_model = tf.keras.applications.vgg16.VGG16(...)                                             
 
 image_batch, label_batch = next(iter(train_ds))
 feature_batch = base_model(image_batch)
@@ -104,9 +84,7 @@ x = base_model(x, training=False)
 x = global_average_layer(x)
 x = tf.keras.layers.Dropout(0.2)(x)
 outputs = prediction_layer(x)
-# Edit name to the right model
 face_classifier = tf.keras.Model(inputs, outputs, name='MobileNet')
-
 
 #  Training
 
@@ -151,6 +129,99 @@ history = face_classifier.fit(
     epochs=initial_epochs,
     callbacks=callbacks,
     validation_data=val_ds)
+
+initial_epochs_done = len(history.history['binary_crossentropy'])
+
+# Store results for future comparison
+acc = history.history['binary_accuracy']
+val_acc = history.history['val_binary_accuracy']
+
+loss = history.history['binary_crossentropy']
+val_loss = history.history['val_binary_crossentropy']
+
+plt.figure(figsize=(8, 8))
+plt.subplot(2, 1, 1)
+plt.plot(acc, label='Training Accuracy')
+plt.plot(val_acc, label='Validation Accuracy')
+plt.legend(loc='lower right')
+plt.ylabel('Accuracy')
+plt.ylim([min(plt.ylim()),1])
+plt.title('Training and Validation Accuracy')
+
+plt.subplot(2, 1, 2)
+plt.plot(loss, label='Training Loss')
+plt.plot(val_loss, label='Validation Loss')
+plt.legend(loc='upper right')
+plt.ylabel('Cross Entropy')
+plt.ylim([0,1.0])
+plt.title('Training and Validation Loss')
+plt.xlabel('epoch')
+plt.show()
+
+
+
+# FINE TUNING
+
+base_model.trainable = True
+
+# Fine-tune from this layer onwards
+fine_tune_at = 100
+
+# Freeze all the layers before the `fine_tune_at` layer
+for layer in base_model.layers[:fine_tune_at]:
+  layer.trainable = False
+
+# Compile the model
+face_classifier.compile(loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+              optimizer = tf.keras.optimizers.RMSprop(learning_rate=base_learning_rate/10),
+              metrics=[tf.keras.losses.BinaryCrossentropy(
+                      from_logits=True, name='binary_crossentropy'),
+                      keras.metrics.BinaryAccuracy()])
+
+# Continue training the model
+fine_tune_epochs = 300
+total_epochs =  initial_epochs_done + fine_tune_epochs
+
+history_fine = face_classifier.fit(
+                         train_ds,
+                         verbose=2,
+                         epochs=total_epochs,
+                         initial_epoch=history.epoch[-1],
+                         callbacks=callbacks,
+                         validation_data=val_ds)
+
+
+# Compare before and after fine tuning
+
+acc += history_fine.history['binary_accuracy']
+val_acc += history_fine.history['val_binary_accuracy']
+
+loss += history_fine.history['binary_crossentropy']
+val_loss += history_fine.history['val_binary_crossentropy']
+
+plt.figure(figsize=(8, 8))
+plt.subplot(2, 1, 1)
+plt.plot(acc, label='Training Accuracy')
+plt.plot(val_acc, label='Validation Accuracy')
+plt.ylabel('Accuracy')
+plt.ylim([min(plt.ylim()),1])
+plt.plot([initial_epochs_done-1,initial_epochs_done-1],
+          plt.ylim(), label='Start Fine Tuning')
+plt.legend(loc='lower right')
+plt.title('Training and Validation Accuracy')
+
+plt.subplot(2, 1, 2)
+plt.plot(loss, label='Training Loss')
+plt.plot(val_loss, label='Validation Loss')
+plt.ylabel('Cross Entropy')
+plt.ylim([0, 1.0])
+plt.plot([initial_epochs_done-1,initial_epochs_done-1],
+         plt.ylim(), label='Start Fine Tuning')
+plt.legend(loc='upper right')
+plt.title('Training and Validation Loss')
+plt.xlabel('epoch')
+plt.show()
+
 
 # SAVING THE MODEL
 face_classifier.save(name_to_save)

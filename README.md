@@ -1,12 +1,7 @@
-# Detector de rostros 'nico-not_nico' en tiempo real
+# Detector de rostros 'Nico-Not_Nico' en tiempo real
 
-Detectector de rostros en tiempo real usando Python, TensoFlow/Keras y OpenCV. 
-
-Este programa difenrenica una persona del resto meidante la cámara web.
-
-## Requisitos
-
-Estos códigos necesitan las librerías *tensorflow* y *opencv*. La forma más fácil de conseguir esto es ejecutar el comando `pip install -r requirements.txt`.
+## Introducción
+Detector de rostros en tiempo real entrenado para identificar una persona en específico, que no es otra que el autor de este proyecto, empleando para ello Python, Tensorflow/Keras y OpenCV.
 
 ## Estructura del proyecto
 
@@ -15,20 +10,18 @@ La estructura es la siguiente
 ```
 nico_not_nico_detector
 ├───datasets
-│   ├───face_dataset_test_images
-│   │   ├───nico      
-│   │   └───not_nico  
-│   ├───face_dataset_train_aug_images
+│   ├───dataset_train
 │   │   ├───nico 
 │   │   └───not_nico  
-│   └───face_dataset_train_images
+│   └───dataset_validation
 │       ├───nico      
-│       └───not_nico  class
+│       └───not_nico 
+├───logs
+│   └───fit
 ├───models
 │   .gitignore
-│   data_augmentation.py
 │   nico_not_nico_classifier.py
-│   nico_not_nico_classifier_model_comparison.ipynb
+│   nico_not_nico_classifier_fine_tune.py
 │   nico_not_nico_detector.py
 │   README.md
 └── requirements.txt
@@ -36,13 +29,51 @@ nico_not_nico_detector
 
 Los directorios del repositorio son los siguientes:
 - El directorio `models` contiene los modelos entrenados previamente
-- El directorio `datasets` contiene a su vez tres directorios, para el entrenamiento, para el entrenamiento con cantidad de datos aumentados y para validación. En cad uno de estos directorios hay a suz vez dos directorios que se corresponden a las clases que queremos identificar, *nico* y *not_nico*.
+- El directorio `datasets` contiene a su vez dos directorios, para el entrenamiento y para validación. En cad uno de estos directorios hay a suz vez dos directorios que se corresponden a las clases que queremos identificar, *nico* y *not_nico*.
+- El directorio `logs/fit` contiene la información registrada durante el entrenamiento para poder ser visualizada en `tensorboard`.
 
-En cuanto a los archivos de código:
-- el archivo `data_augmentation.py` aumenta de forma artificial el conjunto de datos original.
-- el cuaderno `nico_not_nico_classifier_model_comparison.ipynb` contiene el cogio necesario para entrenar y evaluar cinco modelos diferentes.
-- el archivo `nico_not_nico_classifier.py` construye un modelo específico.
-- el archivo `nico_not_nico_detector.py` usa OpenCV para converitr el modelo en un clasificador de rostros en tiempo real.
+## Requisitos
+Los requereimientos para este proyecto se encuentran listados en el archivo ```requirements.txt```, para instalarlos puede ejecutar la siguiente instrucción:
 
-# Referencias
-Este código se basa en el proyecto *me_not_me_detector* del autor Dmytro Nikolaiev, que puede consultarse en el siguiente enlace: https://gitlab.com/Winston-90/me_not_me_detector/
+```sh
+pip install -r requirements.txt
+```
+
+## Entrenar modelo
+El entrenamiento del modelo emplea una red pre-entranada para el reconocimiento facial, para cambiar entre diferentes redes, deben editarse en el archivo ```nico_not_nico_classifier.py``` los siguientes campos:
+- Modelo base
+- Preprocesado de reescalado
+- Nombre del modelo (opcional)
+
+Pueden encontrarse en forma de comentario las opciones para las redes MobileNet (por defecto), ResNet50, ResNet152, Xception y VGG16.
+
+El entrenamiento puede ejecutarse con:
+```sh
+python3 nico_not_nico_classifier.py
+```
+
+El archivo ```nico_not_nico_classifier_fine_tune.py``` es similar, pero ejecuta dos etapas de entrenamiento, una primera normal y una segunda en la que se descongelan las capas superiores del modelo base.
+
+```sh
+python3 nico_not_nico_classifier_fine_tune.py
+```
+
+## Ejecutar detector
+El detector emplea OpenCV para detectar rostros y realizar las inferencias sobre éstos empleando el modelo correspondiente. Se ejecuta con:
+```sh
+python3 nico_not_nico_detector.py
+```  
+
+## Tensorboard
+Para examinar los detalles de la creación del modelo puede emplearse la herramienta ``Tensorboard`` con la siguiente instrucción:
+```sh
+tensorboard --logdir logs/fit
+```
+
+## Referencias
+- [Transfer learning and fine-tuning](https://www.tensorflow.org/tutorials/images/transfer_learning)
+- [A Comprehensive Guide to Convolutional Neural Networks — the ELI5 way](https://towardsdatascience.com/a-comprehensive-guide-to-convolutional-neural-networks-the-eli5-way-3bd2b1164a53)
+- [Common architectures in convolutional neural networks.](https://www.jeremyjordan.me/convnet-architectures/)
+- [Image Augmentation for Deep Learning](https://towardsdatascience.com/image-augmentation-for-deep-learning-histogram-equalization-a71387f609b2)
+- [How to Create a Real-Time Face Detector](https://towardsdatascience.com/how-to-create-real-time-face-detector-ff0e1f81925f)
+- [How to Perform Face Recognition With VGGFace2 in Keras](https://machinelearningmastery.com/how-to-perform-face-recognition-with-vggface2-convolutional-neural-network-in-keras/)

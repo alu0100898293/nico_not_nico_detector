@@ -1,21 +1,42 @@
-# Common imports
+ # Common imports
 import numpy as np
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # TensorFlow imports
-# may differs from version to versions
 import tensorflow as tf
 from tensorflow import keras
 
 # OpenCV
 import cv2
 
+# Device logger
+# tf.debugging.set_log_device_placement(True)
+
+# Use CPU instead GPU
+# with tf.device('/CPU:0'):
+
+# Colors to draw rectangles in BGR
+RED = (0, 0, 255)
+GREEN = (0, 255, 0)
+
+# opencv object that will detect faces for us
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+# Load model to face classification
+model_name = 'face_classifier_MobileNet.h5'
+
+face_classifier = keras.models.load_model(f'models/{model_name}', compile=False)
+class_names = ['nico', 'not_nico']
+
 def get_extended_image(img, x, y, w, h, k=0.1):
     '''
     Function, that return cropped image from 'img'
     If k=0 returns image, cropped from (x, y) (top left) to (x+w, y+h) (bottom right)
     If k!=0 returns image, cropped from (x-k*w, y-k*h) to (x+k*w, y+(1+k)*h)
-    After getting the desired image resize it to 250x250.
-    And converts to tensor with shape (1, 250, 250, 3)
+    After getting the desired image resize it to 128x128.
+    And converts to tensor with shape (1, 128, 128, 3)
 
     Parameters:
         img (array-like, 2D): The original image
@@ -26,7 +47,7 @@ def get_extended_image(img, x, y, w, h, k=0.1):
         k (float): The coefficient of expansion of the image
 
     Returns:
-        image (tensor with shape (1, 250, 250, 3))
+        image (tensor with shape (1, 128, 128, 3))
     '''
 
     # The next code block checks that coordinates will be non-negative
@@ -45,27 +66,12 @@ def get_extended_image(img, x, y, w, h, k=0.1):
 
     face_image = img[start_y:end_y,
                      start_x:end_x]
-    face_image = tf.image.resize(face_image, [1024, 1024])
-    # shape from (1024, 1024, 3) to (1, 1024, 1024, 3)
+    face_image = tf.image.resize(face_image, [128, 128])
+    # shape from (128, 128, 3) to (1, 128, 128, 3)
     face_image = np.expand_dims(face_image, axis=0)
     return face_image
 
-# Colors to draw rectangles in BGR
-RED = (0, 0, 255)
-GREEN = (0, 255, 0)
-
-# opencv object that will detect faces for us
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
-# Load model to face classification
-# model was created with nico_not_nico_classifier.py
-model_name = 'face_classifier_MobileNet.h5'
-
-face_classifier = keras.models.load_model(f'models/{model_name}')
-class_names = ['nico', 'not_nico']
-
-
+# Main function
 
 video_capture = cv2.VideoCapture(0)  # webcamera
 
@@ -75,6 +81,9 @@ else:
     print("Access to the camera was successfully obtained")
 
 print("Streaming started - to quit press ESC")
+
+# Image capture loop
+
 while True:
 
     # Capture frame-by-frame
@@ -100,15 +109,20 @@ while True:
 
         # classify face and draw a rectangle around the face
         # green for positive class and red for negative
-        result = face_classifier.predict(face_image)
-        prediction = class_names[np.array(
-            result[0]).argmax(axis=0)]  # predicted class
-        confidence = np.array(result[0]).max(axis=0)  # degree of confidence
+        result = face_classifier.predict(face_image).flatten()
+        
+        # Apply a sigmoid since our model returns logits
+        prediction = tf.nn.sigmoid(result)
+        prediction = tf.where(prediction < 0.5, 0, 1)
 
+        prediction = class_names[prediction[0]]  # predicted class
+
+        
         if prediction == 'nico':
             color = GREEN
         else:
             color = RED
+            
         # draw a rectangle around the face
         cv2.rectangle(frame,
                       (x, y),  # start_point
@@ -117,7 +131,7 @@ while True:
                       2)  # thickness in px
         cv2.putText(frame,
                     # text to put
-                    "{:6} - {:.2f}%".format(prediction, confidence*100),
+                    "{:6}".format(prediction),
                     (x, y),
                     cv2.FONT_HERSHEY_PLAIN,  # font
                     2,  # fontScale
